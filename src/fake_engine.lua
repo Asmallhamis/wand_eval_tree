@@ -55,6 +55,13 @@ end
 ---@param options options
 ---@param text_formatter text_formatter
 local function easy_add(id, charges, options, text_formatter)
+	local forced_index = nil
+	local colon_pos = id:find(":")
+	if colon_pos then
+		forced_index = tonumber(id:sub(1, colon_pos - 1))
+		id = id:sub(colon_pos + 1)
+	end
+
 	id = id:upper()
 	for _, v in ipairs(actions) do
 		if v.id:upper() == id then
@@ -71,6 +78,9 @@ local function easy_add(id, charges, options, text_formatter)
 			---@cast charges integer
 			_add_card_to_deck(id, 0, charges, true)
 			local card = deck[#deck]
+			if forced_index then
+				card.deck_index = forced_index
+			end
 			---@diagnostic disable-next-line: missing-parameter, assign-type-mismatch, param-type-mismatch
 			card.action = card.action(card)
 			return
@@ -235,8 +245,14 @@ function M.initialise_engine(text_formatter, options)
 		local uv = { _create_shot(...) }
 		local v = uv[1]
 		M.nodes_to_shot_ref[M.cur_parent] = v
-		M.shot_refs_to_nums[v] = { disp = M.cur_shot_num, real = M.cur_shot_num }
+		M.shot_refs_to_nums[v] = { 
+			disp = M.cur_shot_num, 
+			real = M.cur_shot_num,
+			cast = M.cur_cast_num,
+			id_in_cast = M.cur_shot_in_cast_num
+		}
 		M.cur_shot_num = M.cur_shot_num + 1
+		M.cur_shot_in_cast_num = M.cur_shot_in_cast_num + 1
 		-- v.state.wand_tree_initial_mana = mana
 		-- TODO: find a way to do this in a garunteed safe way
 		return unpack(uv)
@@ -266,6 +282,8 @@ function M.initialise_engine(text_formatter, options)
 				local old_node = M.cur_node
 				local new_node = { name = v.id, children = {}, index = clone.deck_index }
 				M.counts[v.id] = (M.counts[v.id] or 0) + 1
+				M.cast_counts[M.cur_cast_num] = M.cast_counts[M.cur_cast_num] or {}
+				M.cast_counts[M.cur_cast_num][v.id] = (M.cast_counts[M.cur_cast_num][v.id] or 0) + 1
 				M.cur_node = new_node.children
 				M.cur_parent = new_node
 				table.insert(old_node, new_node)
@@ -277,7 +295,8 @@ function M.initialise_engine(text_formatter, options)
 				---@diagnostic disable-next-line: return-type-mismatch
 				return new
 			end
-			clone = { deck_index = -1 }
+			-- Always Cast support: fallback to a unique negative index if not provided
+			clone = { deck_index = -999 } 
 			---@diagnostic disable-next-line: redundant-return-value
 			return unpack({ new(...) })
 		end
@@ -290,6 +309,8 @@ end
 ---@param read_to_lua_info table
 ---@param cast integer
 local function eval_wand(options, text_formatter, read_to_lua_info, cast)
+	M.cur_cast_num = cast
+	M.cur_shot_in_cast_num = 1
 	mana = math.min(mana, options.mana_max)
 	table.insert(M.calls.children, { name = "Cast #" .. cast, children = {} })
 	ConfigGunActionInfo_ReadToLua(unpack(read_to_lua_info))
@@ -354,8 +375,12 @@ local function reset_wand(options, text_formatter, spells)
 	M.shot_refs_to_nums = {}
 	M.lines_to_shot_nums = {}
 	M.cur_shot_num = 1
+	M.cur_cast_num = 1
+	M.cur_shot_in_cast_num = 1
 	---@type table<string, integer>
 	M.counts = {}
+	---@type table<integer, table<string, integer>>
+	M.cast_counts = {}
 
 	_clear_deck(false)
 	for _, v in ipairs(spells) do

@@ -1,4 +1,7 @@
-if type(jit) ~= "table" then error("Must be run with luajit!") end
+if type(jit) ~= "table" then
+    -- error("Must be run with luajit!")
+    print("Warning: Not running with LuaJIT. Some features might be limited.")
+end
 
 local arg_parser = require("src.arg_parser")
 local options = arg_parser.parse(arg)

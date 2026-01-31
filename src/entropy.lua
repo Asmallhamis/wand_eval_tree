@@ -1,7 +1,15 @@
-local ffi = require("ffi")
+local success, ffi = pcall(require, "ffi")
 
 ---@class entropy
 local M = {}
+
+if not success then
+	---@return integer
+	function M.get_entropy()
+		return os.time() + math.random(1, 1000000)
+	end
+	return M
+end
 
 local pid
 local windows = ffi.os == "Windows"

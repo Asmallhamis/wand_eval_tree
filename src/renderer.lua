@@ -51,36 +51,53 @@ local function fold(node, engine_data)
 		fold(v, engine_data)
 		local cur = make_text(v, engine_data)
 		if last == cur and cur ~= false then
-			index_set[node.children[i].index] = true
+			local idx = node.children[i].index
+			if type(idx) == "table" then
+				for _, idv in ipairs(idx) do index_set[idv] = true end
+			elseif idx then
+				index_set[idx] = true
+			end
 			cur_c = cur_c + 1
 			table.remove(node.children, i)
 		else
 			last = cur
 			if i ~= 1 then
-				if node.children[i - 1].index ~= nil then
-					index_set[node.children[i - 1].index] = true
+				local prev_node = node.children[i - 1]
+				local idx = prev_node.index
+				if type(idx) == "table" then
+					for _, idv in ipairs(idx) do index_set[idv] = true end
+				elseif idx then
+					index_set[idx] = true
 				end
 				local indexes = {}
 				for k, _ in pairs(index_set) do
 					table.insert(indexes, k)
 				end
+				table.sort(indexes)
 				index_set = {}
-				node.children[i - 1].count = cur_c
-				node.children[i - 1].index = indexes
+				prev_node.count = cur_c
+				prev_node.index = indexes
 				cur_c = 1
 			end
 			i = i + 1
 		end
 	end
 	if i ~= 1 then
-		if node.children[i - 1].index then index_set[node.children[i - 1].index] = true end
+		local prev_node = node.children[i - 1]
+		local idx = prev_node.index
+		if type(idx) == "table" then
+			for _, idv in ipairs(idx) do index_set[idv] = true end
+		elseif idx then
+			index_set[idx] = true
+		end
 		local indexes = {}
 		for k, _ in pairs(index_set) do
 			table.insert(indexes, k)
 		end
+		table.sort(indexes)
 		index_set = {}
-		node.children[i - 1].count = cur_c
-		node.children[i - 1].index = indexes
+		prev_node.count = cur_c
+		prev_node.index = indexes
 		cur_c = 1
 	end
 end
@@ -236,14 +253,25 @@ local function handle(
 end
 
 ---@param src node
+---@param engine_data fake_engine
 ---@param indent string?
 ---@return string
-local function render_json(src, indent)
+local function render_json(src, engine_data, indent)
 	indent = indent or ""
 	indent = indent .. "\t"
 	---@cast src node
 	local s = "{\n"
+	
+	local shot_id = nil
+	if engine_data.nodes_to_shot_ref[src] then
+		local num = engine_data.shot_refs_to_nums[engine_data.nodes_to_shot_ref[src]]
+		if num then shot_id = num.id_in_cast end
+	end
+
 	s = s .. indent .. '"name": "' .. src.name .. '",\n'
+	if shot_id then
+		s = s .. indent .. '"shot_id": ' .. shot_id .. ",\n"
+	end
 	src.count = src.count or 1
 	s = s .. indent .. '"count": ' .. src.count .. ",\n"
 	src.extra = src.extra or ""
@@ -256,7 +284,7 @@ local function render_json(src, indent)
 	s = s .. indent .. '"index": [' .. idx_str .. "],\n"
 	s = s .. indent .. '"children": [' .. (#src.children ~= 0 and "\n" or "")
 	for k, v in ipairs(src.children) do
-		s = s .. indent .. "\t" .. render_json(v, indent .. "\t")
+		s = s .. indent .. "\t" .. render_json(v, engine_data, indent .. "\t")
 		if k ~= #src.children then s = s .. "," end
 		s = s .. "\n"
 	end
@@ -266,6 +294,114 @@ local function render_json(src, indent)
 	return s
 end
 
+local function gather_state_modifications(state, first)
+	local default = require("src.data")
+	local diff = {}
+	for k, v in pairs(state) do
+		if default[k] ~= v then diff[k] = tostring(v) end
+	end
+	diff.action_name = nil
+	diff.action_description = nil
+	diff.action_id = nil
+	diff.action_mana_drain = nil
+	diff.action_draw_many_count = nil
+	diff.action_type = nil
+	diff.action_recursive = nil
+	-- diff.reload_time = nil
+	if not first then 
+		-- diff.fire_rate_wait = nil 
+	end
+
+	---@param csv string?
+	---@return string[]
+	local function handle_xml_csv(csv)
+		if not csv then return {} end
+		---@type string[]
+		local mods = {}
+		for mod in csv:gmatch("([^,]+)") do
+			table.insert(mods, mod)
+		end
+		for k, mod in ipairs(mods) do
+			local suffix = mod:gmatch("/[^/]+%.xml")()
+			mods[k] = suffix:sub(2, suffix:len() - 4)
+		end
+		local counted = {}
+		for _, v in ipairs(mods) do
+			counted[v] = (counted[v] or 0) + 1
+		end
+		local numeric = {}
+		for k, v in pairs(counted) do
+			table.insert(numeric, k .. (v == 1 and "" or (" ×" .. tostring(v))))
+		end
+		return numeric
+	end
+
+	diff.extra_entities = table.concat(handle_xml_csv(diff.extra_entities), ", ")
+	if diff.extra_entities == "" then diff.extra_entities = nil end
+
+	diff.game_effect_entities = table.concat(handle_xml_csv(diff.game_effect_entities), ", ")
+	if diff.game_effect_entities == "" then diff.game_effect_entities = nil end
+
+	local t = {}
+	for k, v in pairs(diff) do
+		table.insert(t, { k, v })
+	end
+	table.sort(t, function(a, b)
+		return a[1] < b[1]
+	end)
+	return t
+end
+
+local function render_combined_json(calls, engine_data, text_formatter)
+	local tree_json = render_json(calls, engine_data)
+	
+	local shot_nums_to_refs = {}
+	for shot, num in pairs(engine_data.shot_refs_to_nums) do
+		shot_nums_to_refs[num.disp] = shot
+	end
+	
+	local states_json = "["
+	for num, shot in ipairs(shot_nums_to_refs) do
+		local shot_info = engine_data.shot_refs_to_nums[shot]
+		local diff = gather_state_modifications(shot.state, shot_info.id_in_cast == 1)
+		states_json = states_json .. "{\"id\": " .. shot_info.id_in_cast .. ", \"cast\": " .. shot_info.cast .. ", \"stats\": {"
+		for i, v in ipairs(diff) do
+			states_json = states_json .. "\"" .. v[1] .. "\": " .. (tonumber(v[2]) or ("\"" .. v[2] .. "\""))
+			if i ~= #diff then states_json = states_json .. ", " end
+		end
+		states_json = states_json .. "}}"
+		if num ~= #shot_nums_to_refs then states_json = states_json .. ", " end
+	end
+	states_json = states_json .. "]"
+
+	local counts_json = "{"
+	local first = true
+	for k, v in pairs(engine_data.counts) do
+		if not first then counts_json = counts_json .. ", " end
+		counts_json = counts_json .. "\"" .. k .. "\": " .. v
+		first = false
+	end
+	counts_json = counts_json .. "}"
+
+	local cast_counts_json = "{"
+	local first_cast = true
+	for cast_num, counts in pairs(engine_data.cast_counts) do
+		if not first_cast then cast_counts_json = cast_counts_json .. ", " end
+		cast_counts_json = cast_counts_json .. "\"" .. cast_num .. "\": {"
+		local first_spell = true
+		for spell_id, count in pairs(counts) do
+			if not first_spell then cast_counts_json = cast_counts_json .. ", " end
+			cast_counts_json = cast_counts_json .. "\"" .. spell_id .. "\": " .. count
+			first_spell = false
+		end
+		cast_counts_json = cast_counts_json .. "}"
+		first_cast = false
+	end
+	cast_counts_json = cast_counts_json .. "}"
+	
+	return "{\"tree\": " .. tree_json .. ", \"states\": " .. states_json .. ", \"counts\": " .. counts_json .. ", \"cast_counts\": " .. cast_counts_json .. "}"
+end
+
 ---@param calls node
 ---@param engine_data fake_engine
 ---@param text_formatter text_formatter
@@ -273,7 +409,7 @@ end
 ---@return string
 function M.render(calls, engine_data, text_formatter, options)
 	if options.fold then fold(calls, engine_data) end
-	if options.json then return render_json(calls) end
+	if options.json then return render_combined_json(calls, engine_data, text_formatter) end
 	pre_multiply(calls, 1)
 	local render = {
 		tree_semi_rendered = "",
@@ -344,65 +480,6 @@ function M.render_counts(engine_data, text_formatter, trailing_grey)
 		.. ("─"):rep(big_length2 + 2)
 		.. "┘\n"
 	return count_message
-end
-
----@param state {string: integer}
----@param first boolean
----@return {string: string}
-local function gather_state_modifications(state, first)
-	local default = require("src.data")
-	local diff = {}
-	for k, v in pairs(state) do
-		if default[k] ~= v then diff[k] = tostring(v) end
-	end
-	diff.action_name = nil
-	diff.action_description = nil
-	diff.action_id = nil
-	diff.action_mana_drain = nil
-	diff.action_draw_many_count = nil
-	diff.action_type = nil
-	diff.action_recursive = nil
-	diff.reload_time = nil
-	if not first then diff.fire_rate_wait = nil end
-
-	---@param csv string?
-	---@return string[]
-	local function handle_xml_csv(csv)
-		if not csv then return {} end
-		---@type string[]
-		local mods = {}
-		for mod in csv:gmatch("([^,]+)") do
-			table.insert(mods, mod)
-		end
-		for k, mod in ipairs(mods) do
-			local suffix = mod:gmatch("/[^/]+%.xml")()
-			mods[k] = suffix:sub(2, suffix:len() - 4)
-		end
-		local counted = {}
-		for _, v in ipairs(mods) do
-			counted[v] = (counted[v] or 0) + 1
-		end
-		local numeric = {}
-		for k, v in pairs(counted) do
-			table.insert(numeric, k .. (v == 1 and "" or (" ×" .. tostring(v))))
-		end
-		return numeric
-	end
-
-	diff.extra_entities = table.concat(handle_xml_csv(diff.extra_entities), ", ")
-	if diff.extra_entities == "" then diff.extra_entities = nil end
-
-	diff.game_effect_entities = table.concat(handle_xml_csv(diff.game_effect_entities), ", ")
-	if diff.game_effect_entities == "" then diff.game_effect_entities = nil end
-
-	local t = {}
-	for k, v in pairs(diff) do
-		table.insert(t, { k, v })
-	end
-	table.sort(t, function(a, b)
-		return a[1] < b[1]
-	end)
-	return t
 end
 
 ---@param engine_data fake_engine
