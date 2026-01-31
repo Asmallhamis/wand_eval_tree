@@ -1,30 +1,25 @@
-_TWWE_LOW_HP = true
-
+-- 覆盖环境检测函数以支持 IF_HP, IF_ENEMY, IF_PROJECTILE
+local _old_EntityGetWithTag = EntityGetWithTag
 function EntityGetWithTag(tag)
-    if tag == "player_unit" and _TWWE_LOW_HP then return { 1 } end
-    return {}
+    if tag == 'player_unit' and _TWWE_LOW_HP then return { 12345 } end
+    return _old_EntityGetWithTag(tag)
 end
-function EntityGetComponent(ent, type)
-    if ent == 1 and type == "DamageModelComponent" then return { 2 } end
+local _old_GetUpdatedEntityID = GetUpdatedEntityID
+function GetUpdatedEntityID()
+    if _TWWE_LOW_HP or _TWWE_MANY_ENEMIES or _TWWE_MANY_PROJECTILES then return 12345 end
+    return _old_GetUpdatedEntityID()
+end
+function EntityGetFirstComponent(ent, type, tag)
+    if ent == 12345 and type == 'DamageModelComponent' and _TWWE_LOW_HP then return 67890 end
     return nil
 end
 function ComponentGetValue2(comp, field)
-    if comp == 2 then
-        if field == "hp" then return 1 end
-        if field == "max_hp" then return 100 end
+    if comp == 67890 then
+        if field == 'hp' then return 0.1 end
+        if field == 'max_hp' then return 1.0 end
     end
     return 0
 end
-function EntityGetInRadiusWithTag(x, y, radius, tag)
-    if tag == "homing_target" and _TWWE_MANY_ENEMIES then
-        return {1,2,3,4,5,6,7,8,9,10,11,12,13,14,15,16,17,18,19,20}
-    end
-    return {}
-end
-function EntityGetInRadius(x, y, radius)
-    if _TWWE_MANY_PROJECTILES then
-        return {1,2,3,4,5,6,7,8,9,10}
-    end
-    return {}
-end
-            
+ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_0.lua")
+ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_1.lua")
+ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_2.lua")
