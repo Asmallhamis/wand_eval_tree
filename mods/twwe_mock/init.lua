@@ -1,3 +1,4 @@
+_TWWE_LOW_HP = true
 -- 覆盖环境检测函数以支持 IF_HP, IF_ENEMY, IF_PROJECTILE
 local _old_EntityGetWithTag = EntityGetWithTag
 function EntityGetWithTag(tag)
