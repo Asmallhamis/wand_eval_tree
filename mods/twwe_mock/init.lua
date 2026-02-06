@@ -1,5 +1,3 @@
-_TWWE_MANY_PROJECTILES = true
-_TWWE_MANY_ENEMIES = true
 -- 覆盖环境检测函数以支持 IF_HP, IF_ENEMY, IF_PROJECTILE
 local _old_EntityGetWithTag = EntityGetWithTag
 function EntityGetWithTag(tag)
