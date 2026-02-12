@@ -1,196 +1,141 @@
-dofile_once("mods/GlimmersExpanded/files/addGlimmers.lua")
-local Mod_Id = "GLIMMERS_EXPANDED_COLOUR_"
+local function table_insert_all (new_actions)
+	for i,v in ipairs(new_actions) do
+		table.insert (actions, v)
+	end
+end
 
-local originalGlimmers = {
-	["COLOUR_RED"]=1,
-	["COLOUR_ORANGE"]=2,
-	["COLOUR_YELLOW"]=3,
-	["COLOUR_GREEN"]=4,
-	["COLOUR_BLUE"]=5,
-	["COLOUR_PURPLE"]=6,
-	["COLOUR_RAINBOW"]=7,
-	["COLOUR_INVIS"]=8,
+local new_actions = {
+	
+	--* MODIFIERS 
+	
+	{
+		id          = "FOLLOW_CURSOR",
+		name 		= "Cursor following",
+		description = "Makes a projectile follow your crosshair",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/cursor_follow.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/sinewave_unidentified.png",
+		related_extra_entities = "mods/nobys_things/mod_data/entities/misc/cursor_follow.xml",
+		type 		= ACTION_TYPE_MODIFIER,
+		spawn_level                       = "1,2,3,4,5,6", -- HOMING
+		spawn_probability                 = "0.1,0.4,0.4,0.4,0.4,0.4", -- HOMING
+		price = 220,
+		mana = 40,
+		action 		= function()
+			c.extra_entities = c.extra_entities .. "mods/nobys_things/mod_data/entities/misc/cursor_follow.xml,"
+			draw_actions( 1, true )
+		end,
+	},
+	{
+		id          = "HOMING_CURSOR_REAL",
+		name 		= "Cursor homing",
+		description = "Makes a projectile accelerate towards your crosshair",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/cursor_homing.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/sinewave_unidentified.png",
+		related_extra_entities = "mods/nobys_things/mod_data/entities/misc/cursor_homing.xml",
+		type 		= ACTION_TYPE_MODIFIER,
+		spawn_level                       = "1,2,3,4,5,6", -- HOMING
+		spawn_probability                 = "0.1,0.4,0.4,0.4,0.4,0.4", -- HOMING
+		price = 220,
+		mana = 60,
+		action 		= function()
+			c.extra_entities = c.extra_entities .. "mods/nobys_things/mod_data/entities/misc/cursor_homing.xml,"
+			draw_actions( 1, true )
+		end,
+	},
+	{
+		id          = "GRAVITY_DISABLE",
+		name 		= "Disable gravity",
+		description = "Makes projectile unaffected by gravity",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/gravity_disable.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/i_shape_unidentified.png",
+		type 		= ACTION_TYPE_MODIFIER,
+		spawn_level                       = "2,3,4,5,6,10", -- GRAVITY_ANTI
+		spawn_probability                 = "0.5,0.4,0.4,0.3,0.3,0.3", -- GRAVITY_ANTI
+		price = 30,
+		mana = 10,
+		--max_uses = 100,
+		action = function()
+			c.gravity = 0
+			c.extra_entities = c.extra_entities .. "mods/nobys_things/mod_data/entities/misc/gravity_disable.xml,"
+			draw_actions( 1, true )
+		end,
+	},
+	{
+		id          = "PENETRATING_SHOT",
+		name 		= "Penetrating shot",
+		description = "Makes the projectile not die when colliding with enemies, but it can only hit each enemy once",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/penetrating_shot.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/homing_unidentified.png",
+		type 		= ACTION_TYPE_MODIFIER,
+		spawn_level                       = "2,3,4,5,6", -- PIERCING_SHOT
+		spawn_probability                 = "0.4,0.5,0.6,0.6,0.4", -- PIERCING_SHOT
+		price = 190,
+		mana = 80,
+		--max_uses = 100,
+		action 		= function()
+			c.extra_entities = c.extra_entities .. "mods/nobys_things/mod_data/entities/misc/penetrating_shot.xml,"
+			draw_actions( 1, true )
+		end,
+	},
+	{
+		id          = "INFINITE_LIFETIME",
+		name 		= "Infinite lifetime",
+		description = "Makes projectile last forever",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/infinite_lifetime.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/spread_reduce_unidentified.png",
+		type 		= ACTION_TYPE_MODIFIER,
+		spawn_level                       = "6,10", -- LIFETIME
+		spawn_probability                 = "0.1,0.1", -- LIFETIME
+		price = 350,
+		mana = 120,
+		max_uses = 3,
+		custom_xml_file = "data/entities/misc/custom_cards/lifetime_infinite.xml",
+		action 		= function()
+			c.extra_entities = c.extra_entities .. "mods/nobys_things/mod_data/entities/misc/infinite_lifetime.xml,data/entities/particles/tinyspark_yellow.xml,"
+			c.fire_rate_wait = c.fire_rate_wait + 13
+			draw_actions( 1, true )
+		end,
+	},
+	
+	--* LOGIC SPELLS 
+
+	{
+		id          = "DRAW_EAT",
+		name 		= "Eat 1 draw",
+		description = "Takes 1 place in a multicast but self-discards",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/eat_draw.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/i_shape_unidentified.png",
+		type 		= ACTION_TYPE_OTHER,
+		spawn_level                       = "10",
+		spawn_probability                 = "0.3",
+		price = 30,
+		mana = 0,
+		--max_uses = 100,
+		action = function()
+			local data = hand[#hand]
+			if ( #hand > 0 ) and ( data ~= nil ) and ( data.id == "DRAW_EAT" ) then
+				table.insert( discarded, data )
+				table.remove( hand, #hand )
+			end
+		end,
+	},
+
+	{
+		id          = "STOP_PROJECTILES",
+		name 		= "Stop projectiles",
+		description = "Prevents any projectiles after it from spawning",
+		sprite 		= "mods/nobys_things/mod_data/images/ui_gfx/stop_projectiles.png",
+		sprite_unidentified = "data/ui_gfx/gun_actions/i_shape_unidentified.png",
+		type 		= ACTION_TYPE_OTHER,
+		spawn_level                       = "10",
+		spawn_probability                 = "0.3",
+		price = 0,
+		mana = 0,
+		--max_uses = 100,
+		action = function()
+			add_projectile("")
+		end,
+	},
 }
 
-local function split(string)
-	local myTable = {}
-	for i in string.gmatch(string, "%P+") do
-		table.insert(myTable, i)
-	end
-	return myTable
-end
-
--- Add together all original glimmer spawn rates (hardcoded bc I did the math myself)
-local total_spawns = {
-	["1"]={prob=0.2,amt=1},
-	["2"]={prob=1.5,amt=8},
-	["3"]={prob=1.4,amt=8},
-	["4"]={prob=1.5,amt=8},
-	["5"]={prob=0.2,amt=1},
-	["6"]={prob=0.2,amt=1},
-	["7"]={prob=0,amt=0},
-	["10"]={prob=0.3,amt=2},
-}
-
-local myFancyNewColors = {}
-
-local function createGlimmerAction(Id, name, desc, image, wait_frames, spawn_probs, spawn_tiers, sort_after, unlock_flag, custom_action, author)
-	local MOD_ID = Mod_Id:upper()
-	local mod_id = Mod_Id:lower()
-	local ID = Id:upper()
-	local id = Id:lower()
-    if not geIsTranslation(name) then name = "$action_"..id end
-    if not geIsTranslation(desc) then desc = "$actiondesc_"..id end
-	if image == nil then image = "mods/GlimmersExpanded/files/gfx/ui_gfx/colour_unknown.png" end
-	if wait_frames == nil then wait_frames = 8 end
-    if spawn_probs == nil then spawn_probs = "0.2,0.2,0.2,0.2,0.2,0.2" end
-	if spawn_tiers == nil then spawn_tiers = "1,2,3,4,5,6" end
-    if sort_after == nil then sort_after = 100 end
-	if unlock_flag == nil then unlock_flag = "card_unlocked_paint" end
-    if type(custom_action) ~= "function" then custom_action = function() --[[Do nothing]] end end
-    if author == nil then author = "Community-Created" end -- I'd default it to "Sharpy796" but I don't want to take credit for glimmers others create and forget to add this to.
-
-
-    local action = function()
-        c.extra_entities    = c.extra_entities .. "mods/GlimmersExpanded/files/entities/misc/"..id..".xml,"
-        custom_action()
-        c.fire_rate_wait    = c.fire_rate_wait - wait_frames
-        c.screenshake       = math.max(0, c.screenshake - 2.5)
-        draw_actions( 1, true )
-    end
-
-    local newGlimmer = {
-        id                      = ID,
-        name                    = name,
-        description             = desc,
-        sprite                  = image,
-        related_extra_entities  = { "mods/GlimmersExpanded/files/entities/misc/"..id..".xml" },
-        type                    = ACTION_TYPE_MODIFIER,
-        spawn_level             = spawn_tiers,
-        spawn_probability       = spawn_probs,
-        spawn_requires_flag     = unlock_flag,
-        price                   = 40,
-        mana                    = 0,
-        action 					= action,
-        sort_after              = sort_after,
-        author                  = author,
-        origin                  = "Glimmers Expanded",
-        is_glimmer              = true, -- This lets other mods tell whether a spell is a glimmer or not.
-    }
-    table.insert(myFancyNewColors, newGlimmer)
-	return newGlimmer
-end
-
-local function sortProgress(myTable)
-	table.sort(myTable, compareGlimmers)
-end
-
-function compareGlimmers(entry1, entry2)
-	return entry1.sort_after < entry2.sort_after
-end
-
-for id, data in pairs(glimmer_list_revamped) do
-	createGlimmerAction(id, data.name, data.desc, data.image, data.cast_delay, nil, data.spawn_tiers, data.sort_after, nil, data.custom_action, data.author)
-end
-
-
-local function parseSpawnProbs(action)
-	-- replace spawn probs with averaged ones
-	local spawn_levels = split(action.spawn_level)
-	local new_probabilities = ""
-	for index,level in ipairs(spawn_levels) do
-		new_probabilities = new_probabilities..total_spawns[level].prob
-		if index < #spawn_levels then
-			new_probabilities = new_probabilities .. ","
-		end
-	end
-    return new_probabilities
-end
-
--- Add together the amount of spells in each tier
-for _, color in ipairs(myFancyNewColors) do
-	local spawn_levels = split(color.spawn_level)
-	for index,level in ipairs(spawn_levels) do
-        total_spawns[level].amt = total_spawns[level].amt+1
-    end
-end
-
--- Take the average of all glimmer spawn rates
-for level,data in pairs(total_spawns) do
-	total_spawns[level].prob = total_spawns[level].prob/(total_spawns[level].amt)
-end
-
--- Fix spawn rates for modded glimmers
-for _, color in ipairs(myFancyNewColors) do
-	color.spawn_probability = parseSpawnProbs(color)
-end
-
--- Fix spawn rates for vanilla glimmers
-for _, action in ipairs(actions) do
-    if originalGlimmers[action.id] then
-        action.spawn_probability = parseSpawnProbs(action)
-    end
-end
-
-if ModSettingGet("GlimmersExpanded.inject_spells") then
-    -- Remove the original glimmers from actions, and insert them into myFancyNewColors
-    for index, action in ipairs(actions) do
-        if index >= #actions then break end
-        local id = actions[index].id
-        local isGlimmer = originalGlimmers[id]
-        if isGlimmer then
-            repeat
-                local id = actions[index].id
-                isGlimmer = originalGlimmers[id]
-                if isGlimmer then
-                    actions[index].sort_after = isGlimmer
-                    table.insert(myFancyNewColors, table.remove(actions, index))
-                end
-            until (not isGlimmer) or index > #actions
-        end
-    end
-end
-
--- Sort myFancyNewColors
-sortProgress(myFancyNewColors)
-
--- -- Put myFancyNewColors into actions (Old code, saving it just in case)
--- if ModSettingGet("GlimmersExpanded.inject_spells") then
---     for index, action in ipairs(actions) do
---         if action.id == "IF_ELSE" then
---             for _, color in ipairs(myFancyNewColors) do
---                 index = index + 1
---                 table.insert(actions, index, color)
---             end
---             break
---         elseif index >= #actions then
---             for _, color in ipairs(myFancyNewColors) do
---                 table.insert(actions, color)
---             end
---             break
---         end
---     end
--- else
---     for _, color in ipairs(myFancyNewColors) do
---         table.insert(actions, color)
---     end
--- end
-
--- Put myFancyNewColors into actions
-do
-    if ModSettingGet("GlimmersExpanded.inject_spells") then
-        for index, action in ipairs(actions) do
-            if action.id == "IF_ELSE" then
-                for _, color in ipairs(myFancyNewColors) do
-                    index = index + 1
-                    table.insert(actions, index, color)
-                end
-                goto continue
-            end
-        end
-    end
-    for _, color in ipairs(myFancyNewColors) do
-        table.insert(actions, color)
-    end
-    ::continue::
-end
+table_insert_all(new_actions)
