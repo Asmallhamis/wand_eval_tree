@@ -61,15 +61,12 @@ function ComponentGetValue2(comp, field)
     return 0
 end
 function EntityGetIsAlive(ent) return true end
-ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_0.lua")
-ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_1.lua")
-ModLuaFileAppend("data/scripts/gun/gun_actions.lua", "mods/twwe_mock/gen_2.lua")
 
 -- TWWE VFS Initialization
 local _TWWE_VFS = {}
 
 -- TWWE Placeholder Fixer
-local _TWWE_ACTIVE_MODS = {"NoitaDearImGui", "component-explorer", "unsafe-explorer", "cheatgui", "disable-mod-restrictions", "death_cam", "removable_perks", "advanced_map", "better_chinese", "spell_lab_shugged", "wand_editor", "x3inventory", "wand_dbg", "ui_timer_hits", "de_spells", "SeedChangerWithPaste", "nobys_things", "wand_sync", "The-Focus"}
+local _TWWE_ACTIVE_MODS = {}
 
 -- 将 VFS 数据同步到 fake_engine 的 M.vfs 中（如果存在）
 local _old_MTFGC = ModTextFileGetContent
