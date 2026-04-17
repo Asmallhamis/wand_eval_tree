@@ -43,3 +43,9 @@ Wand
 Highlighting available if you run it in a terminal.
 # Autocomplete
 You can get autocomplete for the various flags and arguments by running `source ./src/cmp.sh` which will add the completion script to your shell.
+
+# Acknowledgements
+Thanks to [salinecitrine/noita-wand-simulator](https://github.com/salinecitrine/noita-wand-simulator).
+
+The A/D (A = Action, D = Draw) source annotation design in this project was studied from and inspired by that simulator's action source mechanism.
+
